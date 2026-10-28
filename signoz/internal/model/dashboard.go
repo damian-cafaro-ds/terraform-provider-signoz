@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 
 	"github.com/SigNoz/terraform-provider-signoz/signoz/internal/utils"
@@ -27,9 +28,12 @@ type Dashboard struct {
 	Widgets                 []map[string]interface{} `json:"widgets"`
 }
 
-func (d Dashboard) PanelMapToTerraform() (types.String, error) {
-	if d.PanelMap == nil {
-		return types.StringNull(), nil
+func (d Dashboard) PanelMapToTerraform(previous types.String) (types.String, error) {
+	if preserved, ok := preserveDashboardJSON(d.PanelMap, previous); ok {
+		return preserved, nil
+	}
+	if len(d.PanelMap) == 0 {
+		return types.StringValue(""), nil
 	}
 	panelMap, err := structure.FlattenJsonToString(d.PanelMap)
 	if err != nil {
@@ -39,13 +43,34 @@ func (d Dashboard) PanelMapToTerraform() (types.String, error) {
 	return types.StringValue(panelMap), nil
 }
 
-func (d Dashboard) VariablesToTerraform() (types.String, error) {
+func (d Dashboard) VariablesToTerraform(previous types.String) (types.String, error) {
+	if preserved, ok := preserveDashboardJSON(d.Variables, previous); ok {
+		return preserved, nil
+	}
+	if len(d.Variables) == 0 {
+		return types.StringValue("{}"), nil
+	}
 	variables, err := structure.FlattenJsonToString(d.Variables)
 	if err != nil {
 		return types.StringValue(""), err
 	}
 
 	return types.StringValue(variables), nil
+}
+
+func preserveDashboardJSON(actual map[string]interface{}, previous types.String) (types.String, bool) {
+	if previous.IsNull() || previous.IsUnknown() {
+		return types.StringNull(), false
+	}
+	var prior Dashboard
+	if err := prior.SetVariables(previous); err != nil {
+		return types.StringNull(), false
+	}
+	if len(prior.Variables) == 0 && len(actual) == 0 || reflect.DeepEqual(prior.Variables, actual) {
+		// Terraform requires the planned representation, including legacy empty strings.
+		return previous, true
+	}
+	return types.StringNull(), false
 }
 
 func (d Dashboard) TagsToTerraform() (types.List, diag.Diagnostics) {
@@ -73,9 +98,17 @@ func (d Dashboard) WidgetsToTerraform() (types.String, error) {
 }
 
 func (d *Dashboard) SetVariables(tfVariables types.String) error {
+	// Older provider state represents an empty variables object as an empty string.
+	if strings.TrimSpace(tfVariables.ValueString()) == "" {
+		d.Variables = make(map[string]interface{})
+		return nil
+	}
 	variables, err := structure.ExpandJsonFromString(tfVariables.ValueString())
 	if err != nil {
 		return err
+	}
+	if variables == nil {
+		variables = make(map[string]interface{})
 	}
 	d.Variables = variables
 	return nil

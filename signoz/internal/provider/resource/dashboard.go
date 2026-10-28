@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
@@ -101,6 +102,9 @@ func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			},
 			attr.PanelMap: schema.StringAttribute{
 				Optional: true,
+				Computed: true,
+				// Match the API's empty panel map so omission does not trigger an update.
+				Default: stringdefault.StaticString(""),
 			},
 			attr.Source: schema.StringAttribute{
 				Optional:    true,
@@ -260,13 +264,13 @@ func (r *dashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 	state.UploadedGrafana = types.BoolValue(dashboard.Data.UploadedGrafana)
 	state.Version = types.StringValue(dashboard.Data.Version)
 
-	state.PanelMap, err = dashboard.Data.PanelMapToTerraform()
+	state.PanelMap, err = dashboard.Data.PanelMapToTerraform(state.PanelMap)
 	if err != nil {
 		addErr(&resp.Diagnostics, err, operationRead, SigNozDashboard)
 		return
 	}
 
-	state.Variables, err = dashboard.Data.VariablesToTerraform()
+	state.Variables, err = dashboard.Data.VariablesToTerraform(state.Variables)
 	if err != nil {
 		addErr(&resp.Diagnostics, err, operationRead, SigNozDashboard)
 		return
@@ -375,13 +379,13 @@ func (r *dashboardResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
-	plan.PanelMap, err = dashboard.Data.PanelMapToTerraform()
+	plan.PanelMap, err = dashboard.Data.PanelMapToTerraform(plan.PanelMap)
 	if err != nil {
 		addErr(&resp.Diagnostics, err, operationUpdate, SigNozDashboard)
 		return
 	}
 
-	plan.Variables, err = dashboard.Data.VariablesToTerraform()
+	plan.Variables, err = dashboard.Data.VariablesToTerraform(plan.Variables)
 	if err != nil {
 		addErr(&resp.Diagnostics, err, operationUpdate, SigNozDashboard)
 		return

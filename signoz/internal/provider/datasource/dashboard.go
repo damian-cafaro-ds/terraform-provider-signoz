@@ -163,13 +163,13 @@ func (d *dashboardDataSource) Read(ctx context.Context, req datasource.ReadReque
 	// data.UpdatedAt = types.StringValue(dashboard.UpdatedAt)
 	// data.UpdatedBy = types.StringValue(dashboard.UpdatedBy)
 
-	data.PanelMap, err = dashboard.Data.PanelMapToTerraform()
+	data.PanelMap, err = dashboard.Data.PanelMapToTerraform(types.StringNull())
 	if err != nil {
 		addErr(&resp.Diagnostics, err, operationRead)
 		return
 	}
 
-	data.Variables, err = dashboard.Data.VariablesToTerraform()
+	data.Variables, err = dashboard.Data.VariablesToTerraform(types.StringNull())
 	if err != nil {
 		addErr(&resp.Diagnostics, err, operationRead)
 		return
